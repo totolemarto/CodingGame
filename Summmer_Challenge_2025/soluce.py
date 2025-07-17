@@ -105,7 +105,6 @@ class Agent:
         maybe.append(grid[self.line][self.column + 1])
         maybe.append(grid[self.line + 1][self.column])
         maybe.append(grid[self.line][self.column - 1])
-         
         pass
 
 def init_agent() -> dict[int, Agent] :
