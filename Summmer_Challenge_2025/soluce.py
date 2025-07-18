@@ -28,7 +28,18 @@ class Tyle_Type(Enum):
             case Tyle_Type.HIGH:
                 return 75
 
+    def get_max(self, other: Tyle_Type) -> Tyle_Type:
+        if self.get_defense() > other.get_defense():
+            return self 
+        return other
+
 class Agent:
+    # agent_id: Unique identifier for this agent
+    # player: Player id of this agent
+    # shoot_cooldown: Number of turns between each of this agent's shots
+    # optimal_range: Maximum manhattan distance for greatest damage output
+    # soaking_power: Damage output within optimal conditions
+    # splash_bombs: Number of splash bombs this can throw this game
     id : int 
     player : int
     shoot_cooldown : int
@@ -80,16 +91,28 @@ class Agent:
             else:
                 better_defense =  grid[self.line + 1][self.column]
         else:
-            pass 
+            if line > self.line:
+                if column > self.column:
+                    better_defense = grid[self.line + 1][self.column].get_max(grid[self.line][self.column + 1])
+                else: # column < self.column
+                    better_defense = grid[self.line + 1][self.column].get_max(grid[self.line][self.column - 1])
+            else:
+                if column > self.column:
+                    better_defense = grid[self.line - 1][self.column].get_max(grid[self.line][self.column + 1])
+                else: # column < self.column
+                    better_defense = grid[self.line - 1][self.column].get_max(grid[self.line][self.column - 1])
+
         return better_defense.get_defense()
 
-    def get_amount_attack(self, other : Agent) -> int:
-        other.get_defense(self.line, self.column)
-        return 0
+    def get_amount_attack(self, other : Agent) -> float:
+        other_defense : int = other.get_defense(self.line, self.column)
+        multiplicator : int =  1 if self.manhattan_distance(other.line, other.column) > self.optimal_range else 2
+        real_defense : float = 1 + (other_defense / 100 )
+        return self.soaking_power * multiplicator / real_defense 
 
     def who_attack(self, all_agent : dict[int, Agent]) -> int: 
         result : int = 0
-        maxi_attack : int = -1
+        maxi_attack : float = -1
         for key, agent in all_agent.items():
             if agent.player == self.player:
                 continue
@@ -99,25 +122,30 @@ class Agent:
                 result = key
         return result 
 
-    def find_best_cell(self) -> None:
-        maybe : list[Tyle_Type] = []
-        maybe.append(grid[self.line -1][self.column])
-        maybe.append(grid[self.line][self.column + 1])
-        maybe.append(grid[self.line + 1][self.column])
-        maybe.append(grid[self.line][self.column - 1])
-        pass
+    
+    def find_best_cell(self) -> list[int]:
+        # Make it better !!!
+        maybe : list[list[int]] = []
+        maybe.append([self.line - 1, self.column])
+        maybe.append([self.line + 1, self.column])
+        maybe.append([self.line, self.column + 1])
+        maybe.append([self.line , self.column - 1])
+        for elem  in maybe:
+            if grid[elem[0] + 1][elem[1]] == Tyle_Type.HIGH:
+                    return elem
+            if grid[elem[0] - 1][elem[1]] == Tyle_Type.HIGH:
+                    return elem
+            if grid[elem[0] ][elem[1] - 1] == Tyle_Type.HIGH:
+                    return elem
+            if grid[elem[0] ][elem[1] + 1] == Tyle_Type.HIGH:
+                    return elem
+        return []
 
 def init_agent() -> dict[int, Agent] :
     agent_count = int(input())  # Total number of agents in the game
 
     result : dict[int, Agent] = {}
     for i in range(agent_count):
-        # agent_id: Unique identifier for this agent
-        # player: Player id of this agent
-        # shoot_cooldown: Number of turns between each of this agent's shots
-        # optimal_range: Maximum manhattan distance for greatest damage output
-        # soaking_power: Damage output within optimal conditions
-        # splash_bombs: Number of splash bombs this can throw this game
         agent_id, player, shoot_cooldown, optimal_range, soaking_power, splash_bombs = [int(j) for j in input().split()]
         result[agent_id] = Agent(agent_id, player, shoot_cooldown, optimal_range, soaking_power, splash_bombs)
     return result
@@ -148,6 +176,10 @@ def do_shot_tutorial(my_agent : Agent, id_other_agent : int):
     print(f"{my_agent.id};SHOOT {id_other_agent}")
     
 
+def do_move_shot_tutorial(my_agent : Agent, all_agent : dict[int, Agent]):
+    moves = my_agent.find_best_cell()
+    print(f"{my_agent.id};MOVE {moves[1]} {moves[0]}; SHOOT {my_agent.who_attack(all_agent)}")
+
 # Win the water fight by controlling the most territory, or out-soak your opponent!
 
 my_id = int(input())  # Your player id (0 or 1)
@@ -161,23 +193,22 @@ while True:
         # cooldown: Number of turns before this agent can shoot
         # wetness: Damage (0-100) this agent has taken
         agent_id, x, y, cooldown, splash_bombs, wetness = [int(j) for j in input().split()]
-        while all_agent[i].id != agent_id:
-            all_agent.pop(i)
-        all_agent[i].set_position(y, x)
-        all_agent[i].cooldown = cooldown
-        all_agent[i].splash_bombs = splash_bombs
-        all_agent[i].wetness = wetness 
-        if all_agent[i].id != my_id  and all_agent[i].wetness > maxi:
-            maxi = all_agent[i].wetness
-            to_shoot = all_agent[i].id
+        all_agent[agent_id].set_position(y, x)
+        all_agent[agent_id].cooldown = cooldown
+        all_agent[agent_id].splash_bombs = splash_bombs
+        all_agent[agent_id].wetness = wetness 
+        if all_agent[agent_id].id != my_id  and all_agent[agent_id].wetness > maxi:
+            maxi = all_agent[agent_id].wetness
+            to_shoot = all_agent[agent_id].id
             #        if all_agent[i].manhattan_distance(1,6) < maxi:
 #            maxi = all_agent[i].manhattan_distance(1,6)
     my_agent_count = int(input())  # Number of alive agents controlled by you
-    for i in range(my_agent_count):
+    for i in range(1, my_agent_count + 1):
         if False:
             do_move_tutorial(all_agent[i])
             do_shot_tutorial(all_agent[i], to_shoot)
-
+            do_move_shot_tutorial(all_agent[i], all_agent)
 
         # One line per agent: <agentId>;<action1;action2;...> actions are "MOVE x y | SHOOT id | THROW x y | HUNKER_DOWN | MESSAGE text"
+
 
