@@ -125,11 +125,7 @@ class Agent:
     
     def find_best_cell(self) -> list[int]:
         # Make it better !!!
-        maybe : list[list[int]] = []
-        maybe.append([self.line - 1, self.column])
-        maybe.append([self.line + 1, self.column])
-        maybe.append([self.line, self.column + 1])
-        maybe.append([self.line , self.column - 1])
+        maybe : list[list[int]] = get_adjacent_cell(self.line, self.column, diagonal = False) 
         for elem  in maybe:
             if grid[elem[0] + 1][elem[1]] == Tyle_Type.HIGH:
                     return elem
@@ -140,6 +136,45 @@ class Agent:
             if grid[elem[0] ][elem[1] + 1] == Tyle_Type.HIGH:
                     return elem
         return []
+
+    
+    def send_bomb(self) -> list[int]:
+        result : list[int] = []
+        max_distance : int = 4
+        dammage : int = 30
+         
+
+
+        return result
+
+
+def get_position_of_ennemy() -> list[list[int]]:
+    result : list[list[int]] = []
+    for agent in all_agent.values():
+        if agent.player != my_id:
+            result.append([agent.line, agent.column])
+    return result
+
+def get_adjacent_cell(line : int, column: int, diagonal : bool = False) -> list[list[int]]:
+    result : list[list[int]] = []
+    if line > 0:
+        if column > 0 and diagonal:
+            result.append([line - 1, column - 1])
+        result.append([line - 1, column])
+        if column < len(grid[0]) - 1 and diagonal:
+            result.append([line - 1, column + 1])
+    if column > 0:
+        result.append([line, column - 1])
+    if column < len(grid[0]) - 1:
+        result.append([line, column + 1])
+    if line < len(grid) - 1:
+        if column > 0 and diagonal:
+            result.append([line + 1, column - 1])
+        result.append([line + 1, column])
+        if column < len(grid[0]) - 1 and diagonal:
+            result.append([line + 1, column + 1])
+    return result
+
 
 def init_agent() -> dict[int, Agent] :
     agent_count = int(input())  # Total number of agents in the game
