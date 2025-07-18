@@ -138,14 +138,32 @@ class Agent:
         return []
 
     
-    def send_bomb(self) -> list[int]:
+    def send_bomb(self) -> tuple[list[int], int]:
         result : list[int] = []
+        if self.splash_bombs <= 0:
+            return result, 0 
         max_distance : int = 4
         dammage : int = 30
-         
-
-
-        return result
+        enemy_positions : list[list[int]] = get_position_of_ennemy() 
+        maxi = 0
+        for i in range(max_distance):
+            for j in range(max_distance):
+                if (i == j and i == 0) or i + j > 4 :
+                    continue
+                nb_touch_ennemy = 0
+                line_bomb = self.line + i
+                column_bomb = self.column + j
+                if line_bomb < 0 or line_bomb >= len(grid) or column_bomb < 0 or column_bomb >= len(grid[0]):
+                    continue
+                accesible_cell = get_adjacent_cell(line_bomb, column_bomb, diagonal = True)
+                accesible_cell.append( [line_bomb, column_bomb] )
+                for pos_enemy in enemy_positions:
+                    if pos_enemy in accesible_cell:
+                        nb_touch_ennemy += 1
+                if nb_touch_ennemy > maxi :
+                    maxi = nb_touch_ennemy
+                    result = [ line_bomb, column_bomb ]
+        return result, maxi 
 
 
 def get_position_of_ennemy() -> list[list[int]]:
@@ -215,6 +233,35 @@ def do_move_shot_tutorial(my_agent : Agent, all_agent : dict[int, Agent]):
     moves = my_agent.find_best_cell()
     print(f"{my_agent.id};MOVE {moves[1]} {moves[0]}; SHOOT {my_agent.who_attack(all_agent)}")
 
+def do_bomb_tutorial(my_agent : Agent):
+    tmp_line = my_agent.line
+    tmp_column = my_agent.column
+    moves : list[list[int]] = get_adjacent_cell(my_agent.line, my_agent.column, diagonal = False)
+    to_remove : list[list[int]] = []
+    for move in moves:
+        if grid[move[0]][move[1]] != Tyle_Type.EMPTY:
+            to_remove.append(move)
+    for move in to_remove:
+        moves.remove(move)
+    goto : list[int]
+    nb_ennemy : int = 0 
+    prev : int = -1
+    real_goto : list[int] = [-1, -1]
+    good_move : list[int] = [-1, -1]
+    for move in moves:
+        my_agent.line = move[0]
+        my_agent.column = move[1]
+        goto, nb_ennemy = my_agent.send_bomb()
+        if nb_ennemy > prev:
+            real_goto = goto
+            prev = nb_ennemy
+            good_move = move
+    if nb_ennemy > 6:
+        print(f"{my_agent.id};MOVE {good_move[1]} {good_move[0]}; THROW {real_goto[1]} {real_goto[0]}; MESSAGE {nb_ennemy}")
+    else:
+        print(f"{my_agent.id};MOVE {good_move[1]} {good_move[0]}; MESSAGE {nb_ennemy}")
+
+
 # Win the water fight by controlling the most territory, or out-soak your opponent!
 
 my_id = int(input())  # Your player id (0 or 1)
@@ -224,11 +271,13 @@ while True:
     agent_count = int(input())
     maxi = -1
     to_shoot = -1
+    all_id : list[int] = []
     for i in range(agent_count):
         # cooldown: Number of turns before this agent can shoot
         # wetness: Damage (0-100) this agent has taken
         agent_id, x, y, cooldown, splash_bombs, wetness = [int(j) for j in input().split()]
         all_agent[agent_id].set_position(y, x)
+        all_id.append(agent_id)
         all_agent[agent_id].cooldown = cooldown
         all_agent[agent_id].splash_bombs = splash_bombs
         all_agent[agent_id].wetness = wetness 
@@ -238,12 +287,21 @@ while True:
             #        if all_agent[i].manhattan_distance(1,6) < maxi:
 #            maxi = all_agent[i].manhattan_distance(1,6)
     my_agent_count = int(input())  # Number of alive agents controlled by you
-    for i in range(1, my_agent_count + 1):
+    to_remove : list[int] = []
+    for elem in all_agent.keys():
+        if elem not in all_id:
+            to_remove.append(elem)
+    for elem in to_remove:
+        del all_agent[elem]
+    for agent in all_agent.values():
+        if agent.player != my_id:
+            continue
         if False:
-            do_move_tutorial(all_agent[i])
-            do_shot_tutorial(all_agent[i], to_shoot)
-            do_move_shot_tutorial(all_agent[i], all_agent)
-
+            do_move_tutorial(agent)
+            do_shot_tutorial(agent, to_shoot)
+            do_move_shot_tutorial(agent, all_agent)
+        do_bomb_tutorial(agent)
         # One line per agent: <agentId>;<action1;action2;...> actions are "MOVE x y | SHOOT id | THROW x y | HUNKER_DOWN | MESSAGE text"
+
 
 
