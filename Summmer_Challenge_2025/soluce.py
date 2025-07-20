@@ -146,9 +146,9 @@ class Agent:
         dammage : int = 30
         enemy_positions : list[list[int]] = get_position_of_ennemy() 
         maxi = 0
-        for i in range(max_distance):
-            for j in range(max_distance):
-                if (i == j and i == 0) or i + j > 4 :
+        for i in range(-4, max_distance):
+            for j in range(-4, max_distance):
+                if (i == j and i == 0) or abs(i) + abs(j) > 4 :
                     continue
                 nb_touch_ennemy = 0
                 line_bomb = self.line + i
@@ -157,10 +157,25 @@ class Agent:
                     continue
                 accesible_cell = get_adjacent_cell(line_bomb, column_bomb, diagonal = True)
                 accesible_cell.append( [line_bomb, column_bomb] )
+                need_to_continue = False
+                for cell in accesible_cell:
+                    if grid[cell[0]][cell[1]] != Tyle_Type.EMPTY:
+                        need_to_continue = True
+                if need_to_continue:
+                    continue
                 for pos_enemy in enemy_positions:
                     if pos_enemy in accesible_cell:
                         nb_touch_ennemy += 1
+                #print(f"{i=} {j=} {nb_touch_ennemy=}", file=sys.stderr, flush=True)
                 if nb_touch_ennemy > maxi :
+                    my_agents : list[list[int]] = get_position_of_my_agent()
+                    stop_it = False
+                    for pos_agent in my_agents:
+                        if pos_agent in accesible_cell:
+                            stop_it = True
+                            break
+                    if stop_it and len(enemy_positions) != nb_touch_ennemy:
+                        continue
                     maxi = nb_touch_ennemy
                     result = [ line_bomb, column_bomb ]
         return result, maxi 
@@ -171,6 +186,21 @@ def get_position_of_ennemy() -> list[list[int]]:
     for agent in all_agent.values():
         if agent.player != my_id:
             result.append([agent.line, agent.column])
+    return result
+
+def get_position_of_my_agent() -> list[list[int]]:
+    result : list[list[int]] = []
+    for agent in all_agent.values():
+        if agent.player == my_id:
+            result.append([agent.line, agent.column])
+    return result
+
+
+def get_my_agents() -> list[Agent]:
+    result : list[Agent] = []
+    for agent in all_agent.values():
+        if agent.player == my_id:
+            result.append(agent)
     return result
 
 def get_adjacent_cell(line : int, column: int, diagonal : bool = False) -> list[list[int]]:
@@ -252,21 +282,42 @@ def do_bomb_tutorial(my_agent : Agent):
         my_agent.line = move[0]
         my_agent.column = move[1]
         goto, nb_ennemy = my_agent.send_bomb()
-        if nb_ennemy > prev:
+        print(f"{move=} {my_agent.id=} {goto=} {nb_ennemy=}", file=sys.stderr, flush=True)
+        if nb_ennemy > prev and f"{my_agent.id},{str(good_move)},{str(real_goto)}" not in all_moves.keys():        
             real_goto = goto
             prev = nb_ennemy
             good_move = move
-    if nb_ennemy > 6:
+    if nb_ennemy <= 5:
+        mini = 500
+        all_ennemy = get_position_of_ennemy()
+        my_agents_tmp = get_my_agents()
+        good : Agent 
+        good_ennemy : list[int]
+        for  a in my_agents_tmp:
+            if a.id != my_agent.id:
+                good = a
+        for enemy in all_ennemy:
+            if good.manhattan_distance(enemy[0], enemy[1]) > 4:
+                good_ennemy = enemy
+        for move in moves:
+            my_agent.line = move[0]
+            my_agent.column = move[1]
+            if my_agent.manhattan_distance(good_ennemy[0], good_ennemy[1]) < mini:
+                print(f" on a rien donc le plus petit est peut être {move} car posotion ennemy = {good_ennemy}", file=sys.stderr, flush=True)
+                good_move = move
+                mini = my_agent.manhattan_distance(good_ennemy[0], good_ennemy[1])
+    if nb_ennemy > 5:
         print(f"{my_agent.id};MOVE {good_move[1]} {good_move[0]}; THROW {real_goto[1]} {real_goto[0]}; MESSAGE {nb_ennemy}")
+        all_moves[f"{my_agent.id},{str(good_move)},{str(real_goto)}"] = 1
     else:
         print(f"{my_agent.id};MOVE {good_move[1]} {good_move[0]}; MESSAGE {nb_ennemy}")
 
 
 # Win the water fight by controlling the most territory, or out-soak your opponent!
-
 my_id = int(input())  # Your player id (0 or 1)
 all_agent : dict[int, Agent] = init_agent()
 grid : list[list[Tyle_Type]] = init_map() 
+all_moves = {}
 while True:
     agent_count = int(input())
     maxi = -1
@@ -302,6 +353,3 @@ while True:
             do_move_shot_tutorial(agent, all_agent)
         do_bomb_tutorial(agent)
         # One line per agent: <agentId>;<action1;action2;...> actions are "MOVE x y | SHOOT id | THROW x y | HUNKER_DOWN | MESSAGE text"
-
-
-
