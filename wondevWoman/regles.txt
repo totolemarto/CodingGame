@@ -1,0 +1,25 @@
+Protocole
+Entrée d’initialisation
+Ligne 1: un entier size correspondant à la taille de la grille.
+Ligne 2: un entier unitsPerPlayer correspondant au nombre d'unités par joueur. Toujours 1 pour cette ligue.
+Entrée pour un tour de jeu
+size premières lines: size caractères représentant une rangée row de la grille. Un point (.) pour une case non jouable ou un entier height représentant la hauteur courante de la case.
+unitsPerPlayer lignes suivantes: unitX, unitY pour les coordonnées de l’une de vos unités.
+unitsPerPlayer lignes suivantes: otherX, otherY pour les coordonnées de l’une des unités de votre adversaire.
+Si l'unité est hors de votre champ de vision, ces valeurs seront -1 -1.
+Ligne suivante: legalActions, un entier pour le nombre d’actions valides que vous pouvez effectuer à ce tour.
+legalActions ligne suivantes: atype, index, dir1, dir2: les paramètres d’une commande valide que vous pouvez envoyer en sortie à ce tour.
+Par exemple, pour l'action MOVE&BUILD 0 N SW, atype est MOVE&BUILD, index correspond à l'unité ayant l'index 0, qui se déplacera au nord et construira au sud-ouest.
+Sortie pour un tour de jeu
+Une ligne: MOVE&BUILD suivi de index pour l’unité que vous souhaitez voir effectuer l'action (Toujours 0 pour cette ligue), dir1 pour la direction dans laquelle l’unité va se déplacer, dir2 pour la direction de la case sur laquelle l’unité va constuire un niveau.
+
+Vous pouvez ajouter du texte après votre action, il sera affiché dans le jeu.
+
+Les directions possibles sont N, NE, E, SE, S, SW, W, NW.
+Contraintes
+5 ≤ size ≤ 7
+unitsPerPlayer = 1
+0 ≤ legalActions ≤ 64
+Temps de réponse par tour ≤ 50ms
+Temps de réponse pour le premier tour ≤ 1000ms
+
