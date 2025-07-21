@@ -33,6 +33,42 @@ class Tyle_Type(Enum):
             return self 
         return other
 
+class Move:
+    movement : list[int]
+    shoot : int | None
+    bomb : list[int] | None
+    defense : bool
+
+    def __init__(self):
+        self.shoot = -1
+        self.movement = []
+        pass
+
+    def add_move(self, line : int, column : int) -> None:
+        self.movement = []
+        self.movement.append(line)
+        self.movement.append(column)
+    
+    def add_shoot(self, id_other : int) -> None:
+        self.shoot = id_other 
+    
+    def add_bomb(self, line : int, column : int) -> None:
+        self.bomb = []
+        self.bomb.append(line)
+        self.bomb.append(column)
+
+    def change_defense(self, value : bool) -> None:
+        self.defense = value
+
+    def to_str(self) -> str:
+        result = ""
+        if self.movement != []:
+            result += f"MOVE {self.movement[1]} {self.movement[0]}"
+        if self.shoot != -1:
+            result += f";SHOOT {self.shoot}"
+
+        return result
+
 class Agent:
     # agent_id: Unique identifier for this agent
     # player: Player id of this agent
@@ -106,7 +142,9 @@ class Agent:
 
     def get_amount_attack(self, other : Agent) -> float:
         other_defense : int = other.get_defense(self.line, self.column)
-        multiplicator : int =  1 if self.manhattan_distance(other.line, other.column) > self.optimal_range else 2
+        multiplicator : float =  0.5 if self.manhattan_distance(other.line, other.column) > self.optimal_range else 1
+        if self.manhattan_distance(other.line, other.column) > self.optimal_range * 2:
+            multiplicator = 0
         real_defense : float = 1 + (other_defense / 100 )
         return self.soaking_power * multiplicator / real_defense 
 
@@ -180,6 +218,71 @@ class Agent:
                     result = [ line_bomb, column_bomb ]
         return result, maxi 
 
+def do_move_tutorial(x : Agent):
+    if x.manhattan_distance(1,6) == maxi:
+        goto : list[int] = x.shortest_path(1,6)
+        print(f"{x.id};MOVE {goto[1]} {goto[0]}")
+    else:
+        goto : list[int] = x.shortest_path(3,6)
+        print(f"{x.id};MOVE {goto[1]} {goto[0]}")
+
+def do_shot_tutorial(my_agent : Agent, id_other_agent : int):
+    print(f"{my_agent.id};SHOOT {id_other_agent}")
+    
+
+def do_move_shot_tutorial(my_agent : Agent, all_agent : dict[int, Agent]):
+    moves = my_agent.find_best_cell()
+    print(f"{my_agent.id};MOVE {moves[1]} {moves[0]}; SHOOT {my_agent.who_attack(all_agent)}")
+
+def do_bomb_tutorial(my_agent : Agent):
+    tmp_line = my_agent.line
+    tmp_column = my_agent.column
+    moves : list[list[int]] = get_adjacent_cell(my_agent.line, my_agent.column, diagonal = False)
+    to_remove : list[list[int]] = []
+    for move in moves:
+        if grid[move[0]][move[1]] != Tyle_Type.EMPTY:
+            to_remove.append(move)
+    for move in to_remove:
+        moves.remove(move)
+    goto : list[int]
+    nb_ennemy : int = 0 
+    prev : int = -1
+    real_goto : list[int] = [-1, -1]
+    good_move : list[int] = [-1, -1]
+    for move in moves:
+        my_agent.line = move[0]
+        my_agent.column = move[1]
+        goto, nb_ennemy = my_agent.send_bomb()
+        print(f"{move=} {my_agent.id=} {goto=} {nb_ennemy=}", file=sys.stderr, flush=True)
+        if nb_ennemy > prev and f"{my_agent.id},{str(good_move)},{str(real_goto)}" not in all_moves.keys():        
+            real_goto = goto
+            prev = nb_ennemy
+            good_move = move
+    if nb_ennemy <= 5:
+        mini = 500
+        all_ennemy = get_position_of_ennemy()
+        my_agents_tmp = get_my_agents()
+        good : Agent 
+        good_ennemy : list[int]
+        for  a in my_agents_tmp:
+            if a.id != my_agent.id:
+                good = a
+        for enemy in all_ennemy:
+            if good.manhattan_distance(enemy[0], enemy[1]) > 4:
+                good_ennemy = enemy
+        for move in moves:
+            my_agent.line = move[0]
+            my_agent.column = move[1]
+            if my_agent.manhattan_distance(good_ennemy[0], good_ennemy[1]) < mini:
+                print(f" on a rien donc le plus petit est peut être {move} car posotion ennemy = {good_ennemy}", file=sys.stderr, flush=True)
+                good_move = move
+                mini = my_agent.manhattan_distance(good_ennemy[0], good_ennemy[1])
+    if nb_ennemy > 5:
+        print(f"{my_agent.id};MOVE {good_move[1]} {good_move[0]}; THROW {real_goto[1]} {real_goto[0]}; MESSAGE {nb_ennemy}")
+        all_moves[f"{my_agent.id},{str(good_move)},{str(real_goto)}"] = 1
+    else:
+        print(f"{my_agent.id};MOVE {good_move[1]} {good_move[0]}; MESSAGE {nb_ennemy}")
+
 
 def get_position_of_ennemy() -> list[list[int]]:
     result : list[list[int]] = []
@@ -247,70 +350,66 @@ def init_map() -> list[list[Tyle_Type]] :
             result[i].append(Tyle_Type.to_tile(int(inputs[3*j+2])))
     return result
 
-def do_move_tutorial(x : Agent):
-    if x.manhattan_distance(1,6) == maxi:
-        goto : list[int] = x.shortest_path(1,6)
-        print(f"{x.id};MOVE {goto[1]} {goto[0]}")
-    else:
-        goto : list[int] = x.shortest_path(3,6)
-        print(f"{x.id};MOVE {goto[1]} {goto[0]}")
+def nearest(line : int, column : int) -> Agent:
+    maxi = 100
+    for agent in all_agent.values():
+        if agent.manhattan_distance(line, column) < maxi:
+            maxi = agent.manhattan_distance(line, column) 
+            result = agent
+    return result
 
-def do_shot_tutorial(my_agent : Agent, id_other_agent : int):
-    print(f"{my_agent.id};SHOOT {id_other_agent}")
-    
 
-def do_move_shot_tutorial(my_agent : Agent, all_agent : dict[int, Agent]):
-    moves = my_agent.find_best_cell()
-    print(f"{my_agent.id};MOVE {moves[1]} {moves[0]}; SHOOT {my_agent.who_attack(all_agent)}")
+def amount_of_the_map() -> int:
+    me : int = 0
+    for line in range(len(grid)):
+        for column in range(len(grid[0])):
+            if nearest(line, column).player == my_id:
+                me+=1
+            else:
+                me-=1
+    return me
 
-def do_bomb_tutorial(my_agent : Agent):
-    tmp_line = my_agent.line
-    tmp_column = my_agent.column
-    moves : list[list[int]] = get_adjacent_cell(my_agent.line, my_agent.column, diagonal = False)
-    to_remove : list[list[int]] = []
-    for move in moves:
-        if grid[move[0]][move[1]] != Tyle_Type.EMPTY:
-            to_remove.append(move)
-    for move in to_remove:
-        moves.remove(move)
-    goto : list[int]
-    nb_ennemy : int = 0 
-    prev : int = -1
-    real_goto : list[int] = [-1, -1]
-    good_move : list[int] = [-1, -1]
-    for move in moves:
-        my_agent.line = move[0]
-        my_agent.column = move[1]
-        goto, nb_ennemy = my_agent.send_bomb()
-        print(f"{move=} {my_agent.id=} {goto=} {nb_ennemy=}", file=sys.stderr, flush=True)
-        if nb_ennemy > prev and f"{my_agent.id},{str(good_move)},{str(real_goto)}" not in all_moves.keys():        
-            real_goto = goto
-            prev = nb_ennemy
-            good_move = move
-    if nb_ennemy <= 5:
-        mini = 500
-        all_ennemy = get_position_of_ennemy()
-        my_agents_tmp = get_my_agents()
-        good : Agent 
-        good_ennemy : list[int]
-        for  a in my_agents_tmp:
-            if a.id != my_agent.id:
-                good = a
-        for enemy in all_ennemy:
-            if good.manhattan_distance(enemy[0], enemy[1]) > 4:
-                good_ennemy = enemy
-        for move in moves:
-            my_agent.line = move[0]
-            my_agent.column = move[1]
-            if my_agent.manhattan_distance(good_ennemy[0], good_ennemy[1]) < mini:
-                print(f" on a rien donc le plus petit est peut être {move} car posotion ennemy = {good_ennemy}", file=sys.stderr, flush=True)
-                good_move = move
-                mini = my_agent.manhattan_distance(good_ennemy[0], good_ennemy[1])
-    if nb_ennemy > 5:
-        print(f"{my_agent.id};MOVE {good_move[1]} {good_move[0]}; THROW {real_goto[1]} {real_goto[0]}; MESSAGE {nb_ennemy}")
-        all_moves[f"{my_agent.id},{str(good_move)},{str(real_goto)}"] = 1
-    else:
-        print(f"{my_agent.id};MOVE {good_move[1]} {good_move[0]}; MESSAGE {nb_ennemy}")
+def heuristic() -> int :
+    score_life : int = 0
+    score_defense : int = 0
+    for agent in all_agent.values():
+        if agent.id == my_id:
+            score_life -= agent.wetness
+        else:
+            score_life += agent.wetness
+     
+    return score_life + amount_of_the_map() * 30
+
+
+def play_turn(agent : Agent) -> None:
+    mini = -math.inf
+    good : Move = Move()
+    line : int = agent.line
+    column : int = agent.column
+    true_life = {}
+    for move in get_adjacent_cell(agent.line, agent.column):
+        agent.line = move[0]
+        agent.column = move[1]
+        for agent_bis in all_agent.values():
+            if agent_bis.player != agent.player:
+                agent_bis.wetness -= int(agent.get_amount_attack(agent_bis))
+                tmp = heuristic()
+                if tmp > mini:
+                    mini = tmp
+                    good.movement = move
+                    good.shoot = agent_bis.id
+                agent_bis.wetness += int(agent.get_amount_attack(agent_bis))
+        tmp = heuristic()
+        goto, nb_ennemy = agent.send_bomb()
+        if nb_ennemy > 2:
+            print(f"{agent.id}; THROW {goto[1]} {goto[0]}")
+            return
+
+        if tmp > mini:
+            mini = tmp
+            good.movement = move
+    print(f"{agent.id}; {good.to_str()}; MESSAGE = {mini}")
+    return
 
 
 # Win the water fight by controlling the most territory, or out-soak your opponent!
@@ -351,5 +450,7 @@ while True:
             do_move_tutorial(agent)
             do_shot_tutorial(agent, to_shoot)
             do_move_shot_tutorial(agent, all_agent)
-        do_bomb_tutorial(agent)
+            do_bomb_tutorial(agent)
+        play_turn(agent)
         # One line per agent: <agentId>;<action1;action2;...> actions are "MOVE x y | SHOOT id | THROW x y | HUNKER_DOWN | MESSAGE text"
+
