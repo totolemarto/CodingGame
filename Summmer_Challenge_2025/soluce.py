@@ -378,7 +378,7 @@ def heuristic() -> int :
         else:
             score_life += agent.wetness
      
-    return score_life + amount_of_the_map() * 30
+    return score_life + amount_of_the_map() * 50
 
 
 def play_turn(agent : Agent) -> None:
@@ -392,6 +392,8 @@ def play_turn(agent : Agent) -> None:
         agent.column = move[1]
         for agent_bis in all_agent.values():
             if agent_bis.player != agent.player:
+                if int(agent.get_amount_attack(agent_bis)) < agent.soaking_power:
+                    continue
                 agent_bis.wetness -= int(agent.get_amount_attack(agent_bis))
                 tmp = heuristic()
                 if tmp > mini:
@@ -401,13 +403,15 @@ def play_turn(agent : Agent) -> None:
                 agent_bis.wetness += int(agent.get_amount_attack(agent_bis))
         tmp = heuristic()
         goto, nb_ennemy = agent.send_bomb()
-        if nb_ennemy > 2:
+        if nb_ennemy > 0:
             print(f"{agent.id}; THROW {goto[1]} {goto[0]}")
             return
 
         if tmp > mini:
             mini = tmp
             good.movement = move
+    agent.line = good.movement[0]
+    agent.column = good.movement[1]
     print(f"{agent.id}; {good.to_str()}; MESSAGE = {mini}")
     return
 
