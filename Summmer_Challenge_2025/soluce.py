@@ -42,6 +42,8 @@ class Move:
     agent : Agent 
     amount_attack : int
     prev_pos : list[int]
+
+
     def __init__(self, agent = None):
         self.shoot = -1
         self.movement = []
@@ -63,8 +65,8 @@ class Move:
         self.bomb.append(line)
         self.bomb.append(column)
 
-    def change_defense(self, value : bool) -> None:
-        self.defense = value
+    def is_defense(self):
+        self.defense = True
 
     def to_str(self) -> str:
         result = f"{self.agent.id};"
@@ -74,7 +76,7 @@ class Move:
             result += f";THROW {self.bomb[1]} {self.bomb[0]}"
         elif self.shoot != -1:
             result += f";SHOOT {self.shoot}"
-        else:
+        elif self.is_defense:
             result += f";HUNKER_DOWN"
         return result
 
@@ -91,6 +93,8 @@ class Move:
             for agent in drop_bomb(self.bomb[0], self.bomb[1]):
                 agent.wetness += 35
 
+        if self.is_defense:
+            self.agent.defense = 25
             
 
     def undo(self):
@@ -102,6 +106,8 @@ class Move:
         if self.bomb:
             for agent in drop_bomb(self.bomb[0], self.bomb[1]):
                 agent.wetness -= 35
+        if self.is_defense:
+            self.agent.defense = 0
 
 def drop_bomb(line: int, column : int) -> list[Agent]:
     result : list[Agent] = []
@@ -197,7 +203,8 @@ class Agent:
         multiplicator : float =  0.5 if self.manhattan_distance(other.line, other.column) > self.optimal_range else 1
         if self.manhattan_distance(other.line, other.column) > self.optimal_range * 2:
             multiplicator = 0
-        real_defense : float = 1 + (other_defense / 100 )
+        real_defense : float = 1 + (other_defense / 100 ) + (other.defense / 100)
+
         return self.soaking_power * multiplicator / real_defense 
 
     def who_attack(self, all_agent : dict[int, Agent], line : int = -1, column : int = -1) -> int: 
@@ -214,12 +221,17 @@ class Agent:
             if agent.player == self.player:
                 continue
             x = self.get_amount_attack(agent)
+            if x + agent.wetness >= 100:
+                result = key
+                break
+
             if x > maxi_attack:
                 maxi_attack = x
                 result = key
         if line != -1:
             self.line = tmp_line
             self.column = tmp_column
+            
         return result 
 
     
@@ -255,7 +267,14 @@ class Agent:
         maxi = 0
         for i in range(-4, max_distance):
             for j in range(-4, max_distance):
-                if (i == j and i == 0) or abs(i) + abs(j) > 4 :
+                if abs(i) + abs(j) > 4:
+                    continue
+                need_to_continue = False
+                for agent in all_agent.values():
+                    if agent.player == my_id and [i,j] in get_adjacent_cell(agent.line, agent.column, True):
+                        need_to_continue = True
+                        break
+                if need_to_continue:
                     continue
                 nb_touch_ennemy = 0
                 line_bomb = self.line + i
@@ -297,7 +316,7 @@ class Agent:
                 continue
             result.append(Move(self)) # only move
             result[-1].add_move(cell[0], cell[1])
-
+            result[-1].is_defense()
             if self.shoot_cooldown == 0: # Shoot
                 tmp = self.who_attack(all_agent, line = cell[0], column = cell[1])
                 if self.get_amount_attack(all_agent[tmp]) > 0:
@@ -419,18 +438,48 @@ def heuristic() -> int :
     score_defense : int = 0
     them = 0
     us = 0
+    total_range = 0
+    total_bomb = 0
+    bonus = 0
     for agent in all_agent.values():
         if agent.player == my_id:
-            us += 1
-            score_life -= agent.wetness
-        else:
-            them += 1
-            score_life += agent.wetness * 2
-    score = 300 * (us - them)
-    mapi = amount_of_the_map() * 50
-    print("valeur de la map : ", mapi, file=sys.stderr)
-    return score + score_life * 15 + mapi
+            if agent.wetness < 100:
+                total_range += agent.optimal_range
+                total_bomb += agent.splash_bombs
+                us += 1
+                score_life -= agent.wetness
+                mini = 20
+                for other in get_ennemy_agents():
+                    distance = agent.manhattan_distance(other.line, other.column)
+                    if distance < (other.optimal_range * 2):
+                        score_defense += agent.get_defense(other.line, other.column) + agent.defense
+                    if distance < mini:
+                        mini = distance
+                        other_good = other
+                if mini <= agent.optimal_range and mini > other_good.optimal_range:
+                    bonus += 1500
 
+        else:
+            if agent.wetness < 100:
+                total_range -= agent.optimal_range
+                total_bomb -= agent.splash_bombs
+
+                them += 1
+                score_life += agent.wetness
+
+            else:
+                score_life += 200 * 2
+
+
+    mapi = amount_of_the_map() * 95
+    print(f"valeur de la map {mapi}, defense : {score_defense}, score_life : {score_life}, bonus : {bonus}", file=sys.stderr)
+    return score_life * 15 + mapi + score_defense  + bonus + total_bomb * 20 + total_range * 10
+
+def run_move(moves, agent):
+    for move in moves:
+        if move.agent == agent:
+            print(move.to_str())
+            return
 
 def play_turn(agent : Agent) -> None:
     mini = -math.inf
@@ -490,6 +539,8 @@ def min_max(depth : int, isMaximizingPlayer : bool, first : bool = True) -> list
             bestScore = -math.inf
             tmp = []
             for move in agent.get_all_move():
+                if move.movement == [x.movement for x in result]:
+                    continue
                 move.do()
                 print(move.to_str(), file=sys.stderr)
                 score = min_max(depth - 1, False, False)
@@ -520,68 +571,9 @@ def min_max(depth : int, isMaximizingPlayer : bool, first : bool = True) -> list
        if not first:
            return float(bestScore)
        print(result, "ici", file=sys.stderr)
+       for move in result:
+        move.do()
        return result
-
-def run_move(moves, agent):
-    for move in moves:
-        if move.agent == agent:
-            print(move.to_str())
-            return
-def do_joint_action(moves_p1, moves_p2):
-    # Undo dans l'ordre inverse
-    for move in reversed(moves_p2):
-        move.do()
-    for move in reversed(moves_p1):
-        move.do()
-
-def undo_joint_action(moves_p1, moves_p2):
-    # Undo dans l'ordre inverse
-    for move in reversed(moves_p2):
-        move.undo()
-    for move in reversed(moves_p1):
-        move.undo()
-
-def min_max_joint(depth, isMaxPlayer, alpha, beta):
-    if depth == 0 or not get_my_agents() or not get_ennemy_agents():
-        return heuristic(), None, None
-
-    best_score = float('-inf') if isMaxPlayer else float('inf')
-    best_moves_p1 = None
-    best_moves_p2 = None
-
-    # Génère toutes les actions conjointes possibles pour chaque joueur
-    all_joint_moves_p1 = all_moves_possible(me=True)
-    all_joint_moves_p2 = all_moves_possible(me=False)
-
-    # Parcours toutes les combinaisons d’actions simultanées
-    for moves_p1 in all_joint_moves_p1:
-        print(moves_p1[0].to_str(), file=sys.stderr)
-
-        for moves_p2 in all_joint_moves_p2[:2]:
-            # Appliquer simultanément les deux ensembles de mouvements
-            do_joint_action(moves_p1, moves_p2)
-
-            # Appel récursif : on inverse le rôle du joueur max
-            score, _, _ = min_max_joint(depth - 1, not isMaxPlayer, alpha, beta)
-
-            undo_joint_action(moves_p1, moves_p2)
-
-            if isMaxPlayer and score > best_score:
-                best_score = score
-                best_moves_p1 = moves_p1
-                best_moves_p2 = moves_p2
-                alpha = max(alpha, best_score)
-                if beta <= alpha:
-                    break
-            elif not isMaxPlayer and score < best_score:
-                best_score = score
-                best_moves_p1 = moves_p1
-                best_moves_p2 = moves_p2
-                beta = min(beta, best_score)
-                if beta <= alpha:
-                    break
-
-    return best_score, best_moves_p1, best_moves_p2
 
 # Win the water fight by controlling the most territory, or out-soak your opponent!
 my_id = int(input())  # Your player id (0 or 1)
