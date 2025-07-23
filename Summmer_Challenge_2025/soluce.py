@@ -1,4 +1,5 @@
 from __future__ import annotations
+from itertools import product
 import sys
 import math
 from enum import Enum
@@ -38,10 +39,14 @@ class Move:
     bomb : list[int] | None
     defense : bool
     agent : Agent 
+    amount_attack : int
+    prev_pos : list[int]
     def __init__(self, agent = None):
         self.shoot = -1
         self.movement = []
         self.agent = agent
+        self.bomb = []
+        self.prev_pos = []
         pass
 
     def add_move(self, line : int, column : int) -> None:
@@ -61,12 +66,55 @@ class Move:
         self.defense = value
 
     def to_str(self) -> str:
-        result = ""
+        result = f"{self.agent.id};"
         if self.movement != []:
             result += f"MOVE {self.movement[1]} {self.movement[0]}"
+        if self.bomb != []:
+            result += f";THROW {self.bomb[1]} {self.bomb[0]}"
         if self.shoot != -1:
             result += f";SHOOT {self.shoot}"
         return result
+
+    def do(self):
+        self.prev_pos.append(self.agent.line)
+        self.prev_pos.append(self.agent.column)
+        self.agent.line = self.movement[0]
+        self.agent.column = self.movement[1]
+        if self.shoot != -1:
+            other = get_agent_by_id(self.shoot)
+            self.amount_attack = self.agent.get_amount_attack(other)
+            other.wetness += self.amount_attack 
+        if self.bomb:
+            for agent in drop_bomb(self.bomb[0], self.bomb[1]):
+                agent.wetness -= 35
+
+            
+
+    def undo(self):
+        self.agent.line = self.prev_pos[0]
+        self.agent.column = self.prev_pos[1]
+        if self.shoot != -1:
+            other = get_agent_by_id(self.shoot)
+            other.wetness -= self.amount_attack 
+        if self.bomb:
+            for agent in drop_bomb(self.bomb[0], self.bomb[1]):
+                agent.wetness += 35
+
+def drop_bomb(line: int, column : int) -> list[Agent]:
+    result : list[Agent] = []
+    for agent in all_agent.values():
+        if abs(agent.line - line) + abs(agent.column - column) <= 1:
+            result.append(agent)
+            continue
+        if abs(agent.line - line) + abs(agent.column - column) == 2 and line != agent.line and column != agent.column:
+            result.append(agent)
+    return result
+
+def get_agent_by_id(id : int) -> Agent:
+    for values in all_agent.values():
+        if values.id == id:
+            return values
+    return None
 
 class Agent:
     # agent_id: Unique identifier for this agent
@@ -386,52 +434,66 @@ def play_turn(agent : Agent) -> None:
     print(f"{agent.id}; {good.to_str()}; MESSAGE = {mini}")
     return
 
-def all_moves(me : bool) -> list[Move]:
+def all_moves_possible(me : bool) :
     agents : list[Agent] = []
-    result : list[Move] = []
+    result : list[list[Move]] = []
     for agent in all_agent.values():
         if  (agent.player == my_id) == me:
             agents.append(agent)
     for agent in agents:
-        result.__add__(agent.get_all_move())
-
-    return result
-
+        result.append(agent.get_all_move())
+    return list(product(*result))
 
 
 
-def min_max(depth : int, isMaximizingPlayer : bool, first : bool = True) -> Move | float:
+
+def min_max(depth : int, isMaximizingPlayer : bool, first : bool = True) -> list[Move] | float:
     # If it's the computer's turn (maximizing)
-    result : Move
+    result : list[Move]
     if depth == 0:
-        return heuristic()
+        return float(heuristic())
     if isMaximizingPlayer:
+       nb_tour = 25
        bestScore = -math.inf
-       for move in all_moves(me = True):
-           #move.do()
+       for move in all_moves_possible(me = True):
+           nb_tour -=1
+           if nb_tour == 0:
+            break
+           for move_indi in move:
+               move_indi.do()
+               print(move_indi.to_str(), file=sys.stderr)
            score = min_max(depth - 1, False, False)
-           #move.undo()
-           assert(score is float)
+           for move_indi in move:
+               move_indi.undo()
            if bestScore < float(score):
                    bestscore = score
                    result = move
        if not first:
-           return bestScore 
+           return float(bestScore)
+       print(result, "ici", file=sys.stderr)
        return result
     else:
        bestScore = math.inf
-       for move in all_moves(me = False):
-           #move.do()
+       for move in all_moves_possible(me = False):
+           for move_indi in move:
+               move_indi.do()
+               print(move_indi.to_str(), file=sys.stderr)
+
            score = min_max(depth - 1, True, False)
-            #move.undo()
-           assert(score is float)
+           for move_indi in move:
+               move_indi.undo()
            if bestScore > float(score):
                    bestscore = score
                    result = move
        if not first:
-           return bestScore 
+           return float(bestScore )
        return result
 
+def run_move(moves, agent):
+    for move in moves:
+        if move.agent == agent:
+            print(move.to_str())
+            return
 
 # Win the water fight by controlling the most territory, or out-soak your opponent!
 my_id = int(input())  # Your player id (0 or 1)
@@ -464,6 +526,7 @@ while True:
             to_remove.append(elem)
     for elem in to_remove:
         del all_agent[elem]
+    moves_to_do = min_max(1, True)
     for agent in all_agent.values():
         if agent.player != my_id:
             continue
@@ -472,7 +535,8 @@ while True:
             do_shot_tutorial(agent, to_shoot)
             do_move_shot_tutorial(agent, all_agent)
             do_bomb_tutorial(agent)
-        play_turn(agent)
+    #    play_turn(agent)
+        run_move(moves_to_do, agent)
         # One line per agent: <agentId>;<action1;action2;...> actions are "MOVE x y | SHOOT id | THROW x y | HUNKER_DOWN | MESSAGE text"
 ####
 def do_move_tutorial(x : Agent):
@@ -540,3 +604,4 @@ def do_bomb_tutorial(my_agent : Agent):
     else:
         print(f"{my_agent.id};MOVE {good_move[1]} {good_move[0]}; MESSAGE {nb_ennemy}")
 ####
+
