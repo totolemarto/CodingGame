@@ -72,8 +72,10 @@ class Move:
             result += f"MOVE {self.movement[1]} {self.movement[0]}"
         if self.bomb != []:
             result += f";THROW {self.bomb[1]} {self.bomb[0]}"
-        if self.shoot != -1:
+        elif self.shoot != -1:
             result += f";SHOOT {self.shoot}"
+        else:
+            result += f";HUNKER_DOWN"
         return result
 
     def do(self):
@@ -134,6 +136,7 @@ class Agent:
     column : int
     cooldown : int
     wetness : int
+    defense : int
 
     def __init__ (self , id : int, player : int, shoot_cooldown : int, optimal_range : int, soaking_power : int, splash_bombs : int):
         self.id = id
@@ -142,6 +145,7 @@ class Agent:
         self.optimal_range = optimal_range
         self.soaking_power = soaking_power
         self.splash_bombs = splash_bombs
+        self.defense = 0
 
     def set_position(self, line : int, column : int) -> None:
         self.line = line
@@ -422,8 +426,8 @@ def heuristic() -> int :
         else:
             them += 1
             score_life += agent.wetness * 2
-    score = 150 * (us - them)
-    mapi = amount_of_the_map() * 100
+    score = 300 * (us - them)
+    mapi = amount_of_the_map() * 50
     print("valeur de la map : ", mapi, file=sys.stderr)
     return score + score_life * 15 + mapi
 
