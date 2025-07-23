@@ -42,8 +42,6 @@ class Move:
     agent : Agent 
     amount_attack : int
     prev_pos : list[int]
-
-
     def __init__(self, agent = None):
         self.shoot = -1
         self.movement = []
@@ -65,8 +63,8 @@ class Move:
         self.bomb.append(line)
         self.bomb.append(column)
 
-    def is_defense(self):
-        self.defense = True
+    def change_defense(self, value : bool) -> None:
+        self.defense = value
 
     def to_str(self) -> str:
         result = f"{self.agent.id};"
@@ -74,10 +72,8 @@ class Move:
             result += f"MOVE {self.movement[1]} {self.movement[0]}"
         if self.bomb != []:
             result += f";THROW {self.bomb[1]} {self.bomb[0]}"
-        elif self.shoot != -1:
+        if self.shoot != -1:
             result += f";SHOOT {self.shoot}"
-        elif self.is_defense:
-            result += f";HUNKER_DOWN"
         return result
 
     def do(self):
@@ -93,8 +89,6 @@ class Move:
             for agent in drop_bomb(self.bomb[0], self.bomb[1]):
                 agent.wetness += 35
 
-        if self.is_defense:
-            self.agent.defense = 25
             
 
     def undo(self):
@@ -106,8 +100,6 @@ class Move:
         if self.bomb:
             for agent in drop_bomb(self.bomb[0], self.bomb[1]):
                 agent.wetness -= 35
-        if self.is_defense:
-            self.agent.defense = 0
 
 def drop_bomb(line: int, column : int) -> list[Agent]:
     result : list[Agent] = []
@@ -142,7 +134,6 @@ class Agent:
     column : int
     cooldown : int
     wetness : int
-    defense : int
 
     def __init__ (self , id : int, player : int, shoot_cooldown : int, optimal_range : int, soaking_power : int, splash_bombs : int):
         self.id = id
@@ -151,7 +142,6 @@ class Agent:
         self.optimal_range = optimal_range
         self.soaking_power = soaking_power
         self.splash_bombs = splash_bombs
-        self.defense = 0
 
     def set_position(self, line : int, column : int) -> None:
         self.line = line
@@ -203,8 +193,7 @@ class Agent:
         multiplicator : float =  0.5 if self.manhattan_distance(other.line, other.column) > self.optimal_range else 1
         if self.manhattan_distance(other.line, other.column) > self.optimal_range * 2:
             multiplicator = 0
-        real_defense : float = 1 + (other_defense / 100 ) + (other.defense / 100)
-
+        real_defense : float = 1 + (other_defense / 100 )
         return self.soaking_power * multiplicator / real_defense 
 
     def who_attack(self, all_agent : dict[int, Agent], line : int = -1, column : int = -1) -> int: 
@@ -304,7 +293,7 @@ class Agent:
                 continue
             result.append(Move(self)) # only move
             result[-1].add_move(cell[0], cell[1])
-            result[-1].is_defense()
+
             if self.shoot_cooldown == 0: # Shoot
                 tmp = self.who_attack(all_agent, line = cell[0], column = cell[1])
                 if self.get_amount_attack(all_agent[tmp]) > 0:
@@ -433,8 +422,8 @@ def heuristic() -> int :
         else:
             them += 1
             score_life += agent.wetness * 2
-    score = 300 * (us - them)
-    mapi = amount_of_the_map() * 50
+    score = 150 * (us - them)
+    mapi = amount_of_the_map() * 100
     print("valeur de la map : ", mapi, file=sys.stderr)
     return score + score_life * 15 + mapi
 
