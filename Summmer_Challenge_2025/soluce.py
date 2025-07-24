@@ -195,8 +195,7 @@ class Agent:
                     better_defense = grid[self.line - 1][self.column].get_max(grid[self.line][self.column + 1])
                 else: # column < self.column
                     better_defense = grid[self.line - 1][self.column].get_max(grid[self.line][self.column - 1])
-
-        return better_defense.get_defense()
+        return better_defense.get_defense() + self.defense
 
     def get_amount_attack(self, other : Agent) -> float:
         other_defense : int = other.get_defense(self.line, self.column)
