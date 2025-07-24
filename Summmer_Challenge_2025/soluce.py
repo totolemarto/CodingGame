@@ -217,7 +217,7 @@ class Agent:
             self.line = line
             self.column = column
         for key, agent in all_agent.items():
-            if agent.player == self.player:
+            if agent.player == self.player or agent.wetness >= 100:
                 continue
             x = self.get_amount_attack(agent)
             if x + agent.wetness >= 100:
@@ -262,7 +262,6 @@ class Agent:
             self.column = column
         max_distance : int = 4
         dammage : int = 30
-        enemy_positions : list[list[int]] = get_position_of_ennemy() 
         maxi = 0
         for i in range(-4, max_distance):
             for j in range(-4, max_distance):
@@ -275,15 +274,13 @@ class Agent:
                     continue
                 accesible_cell = get_adjacent_cell(line_bomb, column_bomb, diagonal = True)
                 accesible_cell.append( [line_bomb, column_bomb] )
-                need_to_continue = False
-                for pos_enemy in enemy_positions:
-                    if pos_enemy in accesible_cell:
+                for other in get_ennemy_agents():
+                    pos_enemy = [other.line, other.column]
+                    if pos_enemy in accesible_cell and other.wetness < 100:
                         nb_touch_ennemy += 1
                 #print(f"{i=} {j=} {nb_touch_ennemy=}", file=sys.stderr, flush=True)
                 if nb_touch_ennemy > maxi :
-                    need_to_continue = False
                     my_agents : list[list[int]] = get_position_of_my_agent()
-                    stop_it = False
                     mine = 0
                     for pos_agent in my_agents:
                         if pos_agent in accesible_cell:
@@ -299,7 +296,9 @@ class Agent:
 
     def get_all_move(self) -> list[Move]:
         result : list[Move] = []
-        for cell in get_adjacent_cell(self.line, self.column):
+        all_cells = get_adjacent_cell(self.line, self.column)
+        all_cells.append([self.line, self.column])
+        for cell in all_cells:
             if not can_move_to_cell(cell[0], cell[1]):
                 continue
             result.append(Move(self)) # only move
@@ -403,7 +402,7 @@ def nearest(line : int, column : int) -> Agent:
     result : Agent 
     for agent in all_agent.values():
         distance : int = agent.manhattan_distance(line, column)
-        if agent.wetness > 50:
+        if agent.wetness >= 50:
             distance *= 2
         if distance < maxi:
             maxi = distance 
@@ -428,6 +427,7 @@ def heuristic() -> int :
     us = 0
     total_range = 0
     total_bomb = 0
+    total_attack = 0
     bonus = 0
     for agent in all_agent.values():
         if agent.player == my_id:
@@ -437,6 +437,7 @@ def heuristic() -> int :
                 us += 1
                 score_life -= agent.wetness
                 mini = 20
+                total_attack += agent.soaking_power
                 for other in get_ennemy_agents():
                     distance = agent.manhattan_distance(other.line, other.column)
                     if distance < (other.optimal_range * 2):
@@ -447,9 +448,10 @@ def heuristic() -> int :
                 if mini <= agent.optimal_range and mini > other_good.optimal_range:
                     bonus += 1500
             else:
-                score_life -= 200 * 2
+                score_life -= 300 * 2
         else:
             if agent.wetness < 100:
+                total_attack -= agent.soaking_power
                 total_range -= agent.optimal_range
                 total_bomb -= agent.splash_bombs
 
@@ -457,12 +459,12 @@ def heuristic() -> int :
                 score_life += agent.wetness
 
             else:
-                score_life += 200 * 2
+                score_life += 300 * 2
 
 
     mapi = amount_of_the_map() * 95
     print(f"valeur de la map {mapi}, defense : {score_defense}, score_life : {score_life}, bonus : {bonus}", file=sys.stderr)
-    return score_life * 15 + mapi + score_defense  + bonus + total_bomb * 20 + total_range * 10
+    return score_life * 15 + mapi + score_defense  + bonus + total_bomb * 20 + total_range * 10 + total_attack * 50
 
 def run_move(moves, agent):
     for move in moves:
@@ -538,6 +540,7 @@ def min_max(depth : int, isMaximizingPlayer : bool, first : bool = True) -> list
                         bestScore = score
                         tmp = move
             result.append(tmp)
+            tmp.do()
        if not first:
            return float(bestScore)
        print(result, "ici", file=sys.stderr)
