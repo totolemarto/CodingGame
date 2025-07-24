@@ -268,13 +268,6 @@ class Agent:
             for j in range(-4, max_distance):
                 if abs(i) + abs(j) > 4:
                     continue
-                need_to_continue = False
-                for agent in all_agent.values():
-                    if agent.player == my_id and [i,j] in get_adjacent_cell(agent.line, agent.column, True):
-                        need_to_continue = True
-                        break
-                if need_to_continue:
-                    continue
                 nb_touch_ennemy = 0
                 line_bomb = self.line + i
                 column_bomb = self.column + j
@@ -283,23 +276,19 @@ class Agent:
                 accesible_cell = get_adjacent_cell(line_bomb, column_bomb, diagonal = True)
                 accesible_cell.append( [line_bomb, column_bomb] )
                 need_to_continue = False
-                for cell in accesible_cell:
-                    if grid[cell[0]][cell[1]] != Tyle_Type.EMPTY:
-                        need_to_continue = True
-                if need_to_continue:
-                    continue
                 for pos_enemy in enemy_positions:
                     if pos_enemy in accesible_cell:
                         nb_touch_ennemy += 1
                 #print(f"{i=} {j=} {nb_touch_ennemy=}", file=sys.stderr, flush=True)
                 if nb_touch_ennemy > maxi :
+                    need_to_continue = False
                     my_agents : list[list[int]] = get_position_of_my_agent()
                     stop_it = False
+                    mine = 0
                     for pos_agent in my_agents:
                         if pos_agent in accesible_cell:
-                            stop_it = True
-                            break
-                    if stop_it and len(enemy_positions) != nb_touch_ennemy:
+                            mine += 1
+                    if mine >= nb_touch_ennemy:
                         continue
                     maxi = nb_touch_ennemy
                     result = [ line_bomb, column_bomb ]
@@ -457,7 +446,8 @@ def heuristic() -> int :
                         other_good = other
                 if mini <= agent.optimal_range and mini > other_good.optimal_range:
                     bonus += 1500
-
+            else:
+                score_life -= 200 * 2
         else:
             if agent.wetness < 100:
                 total_range -= agent.optimal_range
